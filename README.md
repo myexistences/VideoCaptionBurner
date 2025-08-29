@@ -12,10 +12,7 @@ VideoCaptionBurner is your ultimate tool for transforming raw videos into polish
 
 ![Demo Video](https://github.com/gamingnove6/Demo/raw/refs/heads/main/Demo-1.mp4)  
 
-<video src="https://github.com/gamingnove6/Demo/raw/refs/heads/main/Demo-1.mp4" 
-       controls width="600">
-  Your browser does not support the video tag.
-</video>
+
 
 ## ✨ Key Features
 - **AI Transcription Magic**: Whisper model delivers word-level accuracy with editable reviews. No more manual timing headaches.
