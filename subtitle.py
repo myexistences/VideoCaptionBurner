@@ -197,33 +197,46 @@ def create_professional_glow_layers():
     return layers
 
 def write_subtitles_files(captions, style, resolution, temp_dir, base_name="captions"):
-    """Write captions with professional inner and outer glow effects"""
+    """
+    Same behavior as your version but fixes:
+      - prevents outline/glow from becoming a solid block during disappearance
+      - ensures exit animation ALWAYS completes before the next caption begins
+    DOES NOT change any timestamps. Only changes event-layer transforms and draw order.
+    """
+    import os
     width, height = resolution
+
     srt_path = os.path.join(temp_dir, f"{base_name}.srt")
     ass_path = os.path.join(temp_dir, f"{base_name}.ass")
 
-    # SRT (unchanged)
-    with open(srt_path, "w", encoding="utf-8") as srt:
-        for i, c in enumerate(captions, start=1):
-            srt.write(f"{i}\n")
-            srt.write(f"{format_time_srt(c['start'])} --> {format_time_srt(c['end'])}\n")
-            srt.write(c['text_srt'] + "\n\n")
+    # small helper to make ASS color/alpha robust (ensure trailing & if needed)
+    def _ass_fix(val):
+        if not isinstance(val, str):
+            return val
+        if val.startswith("&H") and not val.endswith("&"):
+            return val + "&"
+        return val
 
-    # ASS with professional glow effects
+    # Base style settings
     primary_color = normalize_hex_color_to_ass(style.get('font_color', '#FFFFFF'))
     outline_color = normalize_hex_color_to_ass(style.get('outline_color', '#000000'))
     font_name = style.get('font_name', 'Arial')
     font_size = int(style.get('font_size', max(24, int(height * 0.05))))
-    shadow = float(style.get('shadow', 0))
+    back_color = "&H64000000"
+
+    # Stroke and shadow options
+    outline = int(style.get('outline', 2))    # Style column outline
+    shadow = float(style.get('shadow', 0.5))  # used to compute soft shadow offset
 
     # Position handling (unchanged)
-    pos_input = style.get('position', 'bottom').lower() if isinstance(style.get('position'), str) else style.get('position')
-    
+    pos_input = style.get('position', 'bottom')
+    if isinstance(pos_input, str):
+        pos_input = pos_input.lower()
+
     if isinstance(pos_input, int) and pos_input in (1,2,3,4,5,6,7,8,9):
         align = pos_input
         margin_v = 40
     else:
-        # string mapping
         if pos_input in ("bottom", "bottom-center", "lower", "lower-center"):
             align = 2
             margin_v = 40
@@ -232,7 +245,7 @@ def write_subtitles_files(captions, style, resolution, temp_dir, base_name="capt
         elif pos_input in ("center", "middle", "middle-center", "center-center"):
             align = 5
             margin_v = int(height * 0.45)
-        elif pos_input in ("slightly-below-center", "below-center", "lower-center"):
+        elif pos_input in ("slightly-below-center", "below-center"):
             align = 5
             margin_v = int(height * 0.55)
         elif pos_input in ("top", "top-center", "upper"):
@@ -242,70 +255,168 @@ def write_subtitles_files(captions, style, resolution, temp_dir, base_name="capt
             align = 2
             margin_v = 40
 
-    # Semi-transparent black background
-    back_color = "&H64000000"
-    
-    # Get the professional glow layers
-    glow_layers = create_professional_glow_layers()
+    # Animation tuning
+    fast_ms = int(style.get('fast_ms', 30))
+    entry_start_pct = int(style.get('entry_start_pct', 85))
+    exit_end_scale_pct = int(style.get('exit_end_scale_pct', 105))
+    accel = float(style.get('accel', 1.0))
+    preempt_ms = int(style.get('preempt_ms', 40))
 
-    with open(ass_path, 'w', encoding='utf-8') as ass:
-        ass.write("[Script Info]\n")
-        ass.write("Title: Professional Inner & Outer Glow Subtitles\n")
-        ass.write("ScriptType: v4.00+\n")
-        ass.write(f"PlayResX: {width}\n")
-        ass.write(f"PlayResY: {height}\n")
-        ass.write("WrapStyle: 0\n")
-        ass.write("ScaledBorderAndShadow: yes\n\n")
+    # Glow layers (use your professional layer generator)
+    glow_enabled = bool(style.get('glow', True))
+    glow_layers = create_professional_glow_layers() if glow_enabled else []
+
+    # Ensure layer alpha/color strings have trailing &
+    for layer in glow_layers:
+        if 'alpha' in layer and isinstance(layer['alpha'], str):
+            layer['alpha'] = _ass_fix(layer['alpha'])
+        if 'color' in layer and isinstance(layer['color'], str):
+            layer['color'] = _ass_fix(layer['color'])
+
+    # --- Write SRT (unchanged) ---
+    with open(srt_path, "w", encoding="utf-8") as srt:
+        for i, c in enumerate(captions, start=1):
+            srt.write(f"{i}\n")
+            srt.write(f"{format_time_srt(c['start'])} --> {format_time_srt(c['end'])}\n")
+            srt.write(c['text_srt'] + "\n\n")
+
+    # --- Write ASS ---
+    with open(ass_path, "w", encoding="utf-8") as ass:
+        ass.write("[Script Info]\nScriptType: v4.00+\n")
+        ass.write(f"PlayResX: {width}\nPlayResY: {height}\nScaledBorderAndShadow: yes\n\n")
 
         ass.write("[V4+ Styles]\n")
         ass.write("Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n")
-        
-        # Create styles for each glow layer
-        for i, layer in enumerate(glow_layers):
-            style_name = f"GlowLayer{i}"
-            # Use absolute value for border in style definition (negative handled in override tags)
-            border_val = abs(layer['border'])
-            ass.write(f"Style: {style_name},{font_name},{font_size},{layer['color']},{layer['color']},{layer['color']},{back_color},0,0,0,0,100,100,0,0,1,{border_val},{shadow},{align},20,20,{margin_v},0\n")
-        
-        # Main text style (bright white, on top)
-        ass.write(f"Style: MainText,{font_name},{font_size},{primary_color},{primary_color},{outline_color},{back_color},0,0,0,0,100,100,0,0,1,0,0,{align},20,20,{margin_v},0\n\n")
+
+        # Create styles for glow layers (keeps outline column as absolute border; blur will be per-event)
+        if glow_enabled:
+            for i, layer in enumerate(glow_layers):
+                style_name = f"GlowLayer{i}"
+                border_val = abs(layer.get('border', 0))
+                ass.write(f"Style: {style_name},{font_name},{font_size},{layer.get('color','&HFFFFFF')},{layer.get('color','&HFFFFFF')},{layer.get('color','&HFFFFFF')},{back_color},0,0,0,0,100,100,0,0,1,{border_val},0,{align},0,0,{margin_v},0\n")
+
+        # Default/main style (unchanged)
+        ass.write(f"Style: Default,{font_name},{font_size},{primary_color},{primary_color},{outline_color},{back_color},0,0,0,0,100,100,0,0,1,{outline},{shadow},{align},0,0,{margin_v},0\n\n")
 
         ass.write("[Events]\n")
         ass.write("Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n")
-        
-        # Write dialogue events with professional glow effects
-        for c in captions:
+
+        # Draw order control:
+        # - glow layers start at base_draw_layer (0..N-1)
+        # - soft shadow at shadow_layer_index
+        # - main text on top at main_layer_index
+        base_draw_layer = 0
+        glow_count = len(glow_layers)
+        shadow_layer_index = base_draw_layer + glow_count
+        main_layer_index = shadow_layer_index + 1
+
+        # Iterate captions and write events
+        for idx, c in enumerate(captions):
             start_time = format_time_ass(c['start'])
             end_time = format_time_ass(c['end'])
             text = c['text_ass']
-            
-            # Write all glow layers (back to front)
-            for i, layer in enumerate(glow_layers):
-                style_name = f"GlowLayer{i}"
-                
-                # Special handling for inner glow (negative border creates inward effect)
-                if layer['type'] == 'inner_glow':
-                    # Inner glow uses special ASS tricks
-                    # Negative border + blur creates rim lighting
-                    glow_text = f"{{\\blur{layer['blur']}\\bord{layer['border']}\\alpha{layer['alpha']}\\c{layer['color']}\\3c{layer['color']}}}{text}"
-                else:
-                    # Standard outer glow and outline
-                    glow_text = f"{{\\blur{layer['blur']}\\bord{abs(layer['border'])}\\alpha{layer['alpha']}\\c{layer['color']}}}{text}"
-                
-                ass.write(f"Dialogue: {layer['layer']},{start_time},{end_time},{style_name},,0,0,0,,{glow_text}\n")
-            
-            # Main text layer (crisp white text on top with subtle inner highlight)
-            main_layer = len(glow_layers)
-            # Add subtle inner edge highlight to main text for extra polish
-            main_text = f"{{\\blur0\\bord0\\c{primary_color}\\3c&HFFFFFF\\shad1}}{text}"
-            ass.write(f"Dialogue: {main_layer},{start_time},{end_time},MainText,,0,0,0,,{main_text}\n")
 
-    print(f"[SUCCESS] Created PROFESSIONAL inner & outer glow effects!")
-    print(f"[INFO] OUTER GLOW: Enhanced radius (blur: 5→20px) for dramatic effect")
-    print(f"[INFO] INNER GLOW: Rim lighting effect using negative borders")
-    print(f"[INFO] Total layers: {len(glow_layers) + 1} (5 outer + 2 inner + 1 outline + 1 main)")
-    print(f"[INFO] Effect matches After Effects / Premiere Pro quality")
-    print(f"[TIP] Inner glow creates luminous text effect from within")
-    print(f"[ADJUST] Edit create_professional_glow_layers() to fine-tune effects")
-    
+            duration_ms = max(1, int((c['end'] - c['start']) * 1000))
+            use_fast_ms = min(fast_ms, max(1, duration_ms // 2))
+
+            # default exit window (finishes preempt_ms before line end)
+            exit_end_rel = max(0, duration_ms - preempt_ms)
+            exit_start_rel = max(0, exit_end_rel - use_fast_ms)
+
+            # entry window
+            entry_start_rel = 0
+            entry_end_rel = min(use_fast_ms, max(1, duration_ms - use_fast_ms - preempt_ms))
+            if entry_end_rel < 1:
+                entry_end_rel = min(use_fast_ms, duration_ms // 3)
+                exit_end_rel = max(entry_end_rel + 1, exit_end_rel)
+                exit_start_rel = max(entry_end_rel + 1, exit_end_rel - use_fast_ms)
+
+            # --- NEW: clamp exit so it finishes before the next caption starts (very important for smoothness)
+            # Compute next caption's relative start (ms from this caption's start)
+            if idx + 1 < len(captions):
+                next_rel = int(round((captions[idx + 1]['start'] - c['start']) * 1000))
+                # safety margin (ms) to avoid equal boundaries causing visible overlap; small value
+                SAFETY_MARGIN_MS = 8
+                # allowed exit end must be strictly less than next_rel - SAFETY_MARGIN_MS
+                allowed_exit_end = min(exit_end_rel, next_rel - SAFETY_MARGIN_MS)
+                allowed_exit_end = max(0, allowed_exit_end)
+
+                # recompute exit window around allowed_exit_end
+                exit_end_rel = allowed_exit_end
+                exit_start_rel = max(0, exit_end_rel - use_fast_ms)
+
+                # ensure entry_end < exit_start (if not, shrink entry_end_rel)
+                if entry_end_rel >= exit_start_rel:
+                    # attempt to shrink entry_end_rel to sit before exit_start_rel
+                    new_entry_end = max(1, exit_start_rel - 1)
+                    # If we cannot keep 1 ms entry (extremely tight), we fallback to 1 and let exit_start_rel be at least +1
+                    entry_end_rel = min(entry_end_rel, new_entry_end)
+                    if entry_end_rel < 1:
+                        entry_end_rel = 1
+                        exit_start_rel = max(entry_end_rel + 1, exit_start_rel)
+                        exit_end_rel = max(exit_start_rel + 1, exit_end_rel)
+
+            # If there is no next caption, exit windows stay as default (finish before event end by preempt_ms)
+
+            # Build per-layer animation tags so every layer uses its own target alpha (no static alpha overrides)
+            # start: scaled small and fully transparent
+            start_state = f"\\fscx{entry_start_pct}\\fscy{entry_start_pct}\\alpha&HFF&"
+
+            # For each glow layer, we'll build a per-layer entry transform target alpha (from layer['alpha'])
+            if glow_enabled and glow_layers:
+                for i, layer in enumerate(glow_layers):
+                    draw_layer = base_draw_layer + i
+                    style_name = f"GlowLayer{i}"
+
+                    # Layer-specific target alpha during visible time (if not provided, use a reasonable default)
+                    layer_alpha_target = layer.get('alpha', None)
+                    if not layer_alpha_target:
+                        # use mid alpha defaults depending on type
+                        if layer.get('type') == 'inner_glow':
+                            layer_alpha_target = "&H20&"   # bright inner
+                        elif layer.get('type') == 'outline':
+                            layer_alpha_target = "&H60&"   # semi-opaque outline (safe)
+                        else:
+                            layer_alpha_target = "&H80&"   # soft outer default
+                    else:
+                        layer_alpha_target = _ass_fix(layer_alpha_target)
+
+                    # Compose per-layer transforms (entry -> target alpha; exit -> transparent)
+                    entry_t_layer = f"\\t({entry_start_rel},{entry_end_rel},{accel},\\fscx100\\fscy100\\alpha{layer_alpha_target})"
+                    exit_t_layer  = f"\\t({exit_start_rel},{exit_end_rel},{accel},\\fscx{exit_end_scale_pct}\\fscy{exit_end_scale_pct}\\alpha&HFF&)"
+                    # Per-layer visual overrides (blur, border, color) but NO static alpha
+                    overrides = ""
+                    if 'blur' in layer and layer['blur']:
+                        overrides += f"\\blur{layer['blur']}"
+                    # use exact border value (negative allowed)
+                    overrides += f"\\bord{layer.get('border', 0)}"
+                    # color override if present
+                    col = layer.get('color', primary_color)
+                    if col:
+                        col_str = col if isinstance(col, str) and col.endswith('&') else _ass_fix(col)
+                        overrides += f"\\c{col_str}\\3c{col_str}"
+
+                    full_tags = "{" + start_state + entry_t_layer + exit_t_layer + overrides + "}"
+                    ass.write(f"Dialogue: {draw_layer},{start_time},{end_time},{style_name},,0,0,0,,{full_tags}{text}\n")
+
+                # Soft black drop shadow underneath main text but above far-out glows
+                shad_px = max(1, int(round(shadow * 2)))
+                # choose a reasonable blur for the shadow
+                shadow_blur = max(1.0, float(glow_layers[0].get('blur', 4)) / 3.0)
+                # make shadow animate with same transforms (fade in->visible at semi, fade out->transparent)
+                shadow_entry_alpha = "&H80&"
+                shadow_entry = f"\\t({entry_start_rel},{entry_end_rel},{accel},\\fscx100\\fscy100\\alpha{shadow_entry_alpha})"
+                shadow_exit  = f"\\t({exit_start_rel},{exit_end_rel},{accel},\\fscx{exit_end_scale_pct}\\fscy{exit_end_scale_pct}\\alpha&HFF&)"
+                shadow_overrides = f"\\blur{shadow_blur}\\c&H000000&\\3c&H000000&\\shad{shad_px}"
+                shadow_tags = "{" + start_state + shadow_entry + shadow_exit + shadow_overrides + "}"
+                ass.write(f"Dialogue: {shadow_layer_index},{start_time},{end_time},Default,,0,0,0,,{shadow_tags}{text}\n")
+
+            # MAIN text: build transforms that animate to fully-opaque main alpha (&H00&) and then to transparent on exit
+            entry_t_main = f"\\t({entry_start_rel},{entry_end_rel},{accel},\\fscx100\\fscy100\\alpha&H00&)"
+            exit_t_main  = f"\\t({exit_start_rel},{exit_end_rel},{accel},\\fscx{exit_end_scale_pct}\\fscy{exit_end_scale_pct}\\alpha&HFF&)"
+            main_full_tags = "{" + start_state + entry_t_main + exit_t_main + "}"
+            ass.write(f"Dialogue: {main_layer_index},{start_time},{end_time},Default,,0,0,0,,{main_full_tags}{text}\n")
+
+    print("[INFO] ASS written with stroke, shadow, and multi-layer glow (fixed draw order and exit-clamp).")
+    print("[INFO] Outline thickness:", outline, "| Shadow depth:", shadow)
     return srt_path, ass_path
