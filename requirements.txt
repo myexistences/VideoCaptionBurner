@@ -1,0 +1,4 @@
+# project/requirements.txt
+openai-whisper>=20231117
+matplotlib>=3.5.0
+fonttools>=4.33.0
