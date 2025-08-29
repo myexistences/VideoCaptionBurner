@@ -1,10 +1,11 @@
 
 # 🎥 VideoCaptionBurner
 
-[![GitHub Stars](https://img.shields.io/github/stars/myexistences/VideoCaptionBurner?style=for-the-badge&logo=github&color=brightgreen)](https://github.com/myexistences/VideoCaptionBurner/stargazers)
-[![GitHub Forks](https://img.shields.io/github/forks/myexistences/VideoCaptionBurner?style=for-the-badge&logo=github&color=blue)](https://github.com/myexistences/VideoCaptionBurner/network)
-[![GitHub Watchers](https://img.shields.io/github/watchers/myexistences/VideoCaptionBurner?style=for-the-badge&logo=github&color=orange)](https://github.com/myexistences/VideoCaptionBurner/watchers)
-[![Repo Views](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2Fmyexistences%2FVideoCaptionBurner&count_bg=%23FF4500&title_bg=%23000000&icon=github.svg&icon_color=%23FFFFFF&title=Views&edge_flat=false)](https://github.com/myexistences/VideoCaptionBurner)
+[![GitHub Views](https://komarev.com/ghpvc/?username=myexistences&repo=VideoCaptionBurner&color=blueviolet&style=flat&label=Views)](https://github.com/myexistences/VideoCaptionBurner)
+[![Python Version](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![GitHub Stars](https://img.shields.io/github/stars/myexistences/VideoCaptionBurner?style=social)](https://github.com/myexistences/VideoCaptionBurner/stargazers)
+[![GitHub Forks](https://img.shields.io/github/forks/myexistences/VideoCaptionBurner?style=social)](https://github.com/myexistences/VideoCaptionBurner/network/members)
 
 **Elevate your videos with AI-powered, studio-grade captions.**  
 VideoCaptionBurner is your ultimate tool for transforming raw videos into polished masterpieces. Powered by OpenAI's Whisper for lightning-fast transcription, it generates customizable subtitles with pro-level effects like multi-layer glows, shadows, and animations. Burn them seamlessly into your video using FFmpeg – all in one sleek, user-friendly package. Perfect for creators, editors, and storytellers who demand perfection. 🚀
