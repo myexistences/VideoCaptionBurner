@@ -10,7 +10,9 @@
 **Elevate your videos with AI-powered, studio-grade captions.**  
 VideoCaptionBurner is your ultimate tool for transforming raw videos into polished masterpieces. Powered by OpenAI's Whisper for lightning-fast transcription, it generates customizable subtitles with pro-level effects like multi-layer glows, shadows, and animations. Burn them seamlessly into your video using FFmpeg – all in one sleek, user-friendly package. Perfect for creators, editors, and storytellers who demand perfection. 🚀
 
-![Demo Video](https://github.com/gamingnove6/Demo/raw/refs/heads/main/Demo-1.mp4)  
+# ![Demo Video](https://github.com/gamingnove6/Demo/raw/refs/heads/main/Demo-1.mp4)  
+▶ [Watch the Demo Video on Vimeo](https://vimeo.com/1114347947)
+
 
 
 
