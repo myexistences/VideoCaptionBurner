@@ -102,4 +102,3 @@ MIT – Free to use, modify, and share. See [LICENSE](LICENSE) for deets.
 ---
 
 Crafted by [@myexistences](https://github.com/myexistences). Drop a star, fork, or watch – let's make videos epic together! 🌟
-```
