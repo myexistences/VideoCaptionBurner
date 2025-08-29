@@ -11,14 +11,14 @@ def build_caption_units(data,
 
     Rules (defaults):
       - gap < continue_if_gap_ms  => continue the same caption line
-      - continue_if_gap_ms <= gap < separate_if_gap_ms => insert a line break in the same caption (natural new line)
+      - continue_if_gap_ms <= gap < separate_if_gap_ms => end current caption and start a new one
       - gap >= separate_if_gap_ms => end/flush current caption (caption vanishes during gap) and start a new caption
 
     Preserves per-word timestamps and returns captions with:
       - 'start' (float seconds)
       - 'end' (float seconds)
-      - 'text_ass' (lines separated by '\\N')
-      - 'text_srt' (lines separated by '\n')
+      - 'text_ass' (always single line, no \\N)
+      - 'text_srt' (always single line, no \\n)
       - 'words' list of (word, start, end)
     """
     captions = []
@@ -28,32 +28,21 @@ def build_caption_units(data,
     sep_th = float(separate_if_gap_ms) / 1000.0
 
     def flush(curr):
-        """Flush a current caption (list of (word, s, e) and line-break markers)."""
+        """Flush a current caption (list of (word, s, e))."""
         if not curr:
             return
-        # curr is list of tuples or markers representing words and '\n' linebreak placeholders
-        # We will compress into lines by scanning curr for line-break markers
-        lines = []
-        cur_line = []
         start = None
         end = None
         words_for_meta = []
+        words = []
         for item in curr:
-            if item == "__LINE_BREAK__":
-                # push current line
-                if cur_line:
-                    lines.append(' '.join(cur_line))
-                    cur_line = []
-                continue
             # item is (word, s, e)
             w, s, e = item
             if start is None:
                 start = float(s)
             end = float(e)
-            cur_line.append(w)
+            words.append(w)
             words_for_meta.append((w, float(s), float(e)))
-        if cur_line:
-            lines.append(' '.join(cur_line))
 
         if start is None or end is None:
             return
@@ -61,8 +50,8 @@ def build_caption_units(data,
         captions.append({
             'start': float(start),
             'end': float(end),
-            'text_ass': '\\\\N'.join(lines),
-            'text_srt': '\\n'.join(lines),
+            'text_ass': ' '.join(words),   # always one line
+            'text_srt': ' '.join(words),   # always one line
             'words': words_for_meta
         })
 
@@ -86,13 +75,14 @@ def build_caption_units(data,
                 s = seg_start + i * per_word
                 e = s + per_word
                 gap = 0 if last_end is None else s - last_end
-                # Use same thresholds but approximate
-                if gap >= sep_th or len([x for x in current if x != "__LINE_BREAK__"]) >= max_words_per_caption:
+                # flush if big gap or caption too long
+                if gap >= sep_th or len(current) >= max_words_per_caption:
                     flush(current)
                     current = []
-                # moderate gap -> line break inside caption
-                if last_end is not None and cont_th <= gap < sep_th and current:
-                    current.append("__LINE_BREAK__")
+                # medium gap: also flush (instead of line break)
+                elif last_end is not None and cont_th <= gap < sep_th and current:
+                    flush(current)
+                    current = []
                 current.append((w, s, e))
                 last_end = e
         flush(current)
@@ -101,7 +91,7 @@ def build_caption_units(data,
     # With per-word timestamps:
     current = []
     last_end = None
-    words_in_current = 0  # count of words (not counting line-break markers)
+    words_in_current = 0
     for seg in data.get('segments', []):
         for w in seg.get('words', []):
             word_text = (w.get('word') or '').strip()
@@ -117,7 +107,6 @@ def build_caption_units(data,
 
             # if gap >= separate threshold -> end current caption and start a new one
             if last_end is not None and gap >= sep_th:
-                # flush current so it vanishes during gap
                 flush(current)
                 current = []
                 words_in_current = 0
@@ -128,29 +117,26 @@ def build_caption_units(data,
                 current = []
                 words_in_current = 0
 
-            # moderate gaps: insert a line-break marker inside the same caption
+            # moderate gaps: instead of line-break, flush caption and start new
             if last_end is not None and cont_th <= gap < sep_th and current:
-                # only insert if current line isn't already exhausted by max_words_per_line
-                current.append("__LINE_BREAK__")
+                flush(current)
+                current = []
+                words_in_current = 0
 
-            # for very small gaps (< cont_th) -> we continue same line (no op)
             # add the word
             current.append((word_text, w_start, w_end))
             words_in_current += 1
 
-            # enforce per-line maximum: if current line would exceed max_words_per_line, we insert line-break
-            # count words since last line break
-            # compute words since last line break
+            # enforce per-line maximum: instead of line-break, flush caption
             rev = list(reversed(current))
             count_since_break = 0
             for it in rev:
-                if it == "__LINE_BREAK__":
-                    break
                 count_since_break += 1
             if count_since_break >= max_words_per_line:
-                # only insert break if we won't exceed caption word limit by doing so
                 if words_in_current < max_words_per_caption:
-                    current.append("__LINE_BREAK__")
+                    flush(current)
+                    current = []
+                    words_in_current = 0
 
             # strong punctuation heuristic: if the word ends a sentence, flush immediately
             if re.search(r'[\.!\?]$', word_text):
