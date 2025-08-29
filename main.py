@@ -117,7 +117,7 @@ def create_and_burn(video_path, model_size='medium'):
             pass
 
 def main():
-    print('=== Enhanced Caption Burner (updated) ===')
+    print('=== Enhanced Caption Burner (BY @myexistences) ===')
     while True:
         video_path = input('Enter full path to video file (or type quit to exit): ').strip('"')
         if not video_path:
